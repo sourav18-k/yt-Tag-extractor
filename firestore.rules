@@ -1,0 +1,627 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Shared Hardened Primitives
+    // -------------------------------------------------------------------------
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isBootstrappedAdminEmail() {
+      return isVerifiedUser() && request.auth.token.email == 'berasourav5132@gmail.com';
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'berasourav5132@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints (Anti-Update-Gap)
+    // -------------------------------------------------------------------------
+    function isValidUserPublicProfile(data) {
+      return data.keys().hasAll([
+          'uid',
+          'displayName',
+          'subscriptionPlan',
+          'subscriptionStatus',
+          'status',
+          'role',
+          'inspectionCount',
+          'aiToolRuns',
+          'deviceType',
+          'registeredAt',
+          'lastActiveAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'photoURL',
+          'subscriptionPlan',
+          'subscriptionStatus',
+          'status',
+          'role',
+          'inspectionCount',
+          'aiToolRuns',
+          'deviceType',
+          'registeredAt',
+          'lastActiveAt',
+          'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.subscriptionPlan in ['free', 'monthly', 'annual']
+        && data.subscriptionStatus in ['none', 'active', 'expired', 'cancelled']
+        && data.status in ['active', 'suspended']
+        && data.role in ['user', 'admin']
+        && data.inspectionCount is int && data.inspectionCount >= 0
+        && data.aiToolRuns is int && data.aiToolRuns >= 0
+        && data.deviceType in ['Desktop', 'Mobile', 'Tablet', 'Unknown']
+        && data.registeredAt is timestamp
+        && data.lastActiveAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSavedVideoItem(data) {
+      return data.keys().hasAll([
+          'uid',
+          'videoId',
+          'url',
+          'title',
+          'channelName',
+          'durationFormatted',
+          'thumbnailUrl',
+          'savedAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'videoId',
+          'url',
+          'title',
+          'channelName',
+          'durationFormatted',
+          'thumbnailUrl',
+          'viewCount',
+          'videoSnapshot',
+          'savedAt',
+          'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && isValidId(data.videoId)
+        && data.videoId.size() <= 64
+        && data.url is string && data.url.size() >= 10 && data.url.size() <= 500
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 300
+        && data.channelName is string && data.channelName.size() >= 1 && data.channelName.size() <= 120
+        && data.durationFormatted is string && data.durationFormatted.size() <= 32
+        && data.thumbnailUrl is string && data.thumbnailUrl.size() <= 500
+        && (!('viewCount' in data) || data.viewCount == null || (data.viewCount is number && data.viewCount >= 0))
+        && (!('videoSnapshot' in data) || data.videoSnapshot is map)
+        && data.savedAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserActivityItem(data) {
+      return data.keys().hasAll(['uid', 'action', 'timestamp'])
+        && data.keys().hasOnly(['uid', 'action', 'targetId', 'timestamp'])
+        && isValidId(data.uid)
+        && data.action is string && data.action.size() >= 1 && data.action.size() <= 160
+        && (!('targetId' in data) || (data.targetId is string && data.targetId.size() <= 128))
+        && data.timestamp is timestamp;
+    }
+
+    function isValidAdminAccount(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.role == 'admin'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAppConfiguration(data) {
+      return data.keys().hasAll([
+          'maintenanceMode',
+          'appStatus',
+          'announcementEnabled',
+          'announcementMessage',
+          'aiToolsEnabled',
+          'adGateEnabled',
+          'dailyFreeInspectLimit',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'maintenanceMode',
+          'appStatus',
+          'announcementEnabled',
+          'announcementMessage',
+          'aiToolsEnabled',
+          'adGateEnabled',
+          'dailyFreeInspectLimit',
+          'updatedAt'
+        ])
+        && data.maintenanceMode is bool
+        && data.appStatus in ['operational', 'degraded', 'maintenance']
+        && data.announcementEnabled is bool
+        && data.announcementMessage is string && data.announcementMessage.size() <= 280
+        && data.aiToolsEnabled is bool
+        && data.adGateEnabled is bool
+        && data.dailyFreeInspectLimit is int && data.dailyFreeInspectLimit >= 1 && data.dailyFreeInspectLimit <= 500
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAppNotification(data) {
+      return data.keys().hasAll(['title', 'message', 'audience', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'message', 'audience', 'active', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 280
+        && data.audience in ['all', 'free', 'premium']
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSubscriptionRecord(data) {
+      return data.keys().hasAll([
+          'uid',
+          'plan',
+          'status',
+          'provider',
+          'amount',
+          'currency',
+          'startedAt',
+          'expiresAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'plan',
+          'status',
+          'provider',
+          'razorpayOrderId',
+          'razorpayPaymentId',
+          'amount',
+          'currency',
+          'startedAt',
+          'expiresAt',
+          'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.plan in ['monthly', 'annual']
+        && data.status in ['active', 'expired', 'cancelled']
+        && data.provider is string && data.provider.size() >= 1 && data.provider.size() <= 32
+        && (!('razorpayOrderId' in data) || (data.razorpayOrderId is string && data.razorpayOrderId.size() <= 128))
+        && (!('razorpayPaymentId' in data) || (data.razorpayPaymentId is string && data.razorpayPaymentId.size() <= 128))
+        && data.amount is number && data.amount >= 0
+        && data.currency is string && data.currency.size() >= 3 && data.currency.size() <= 10
+        && data.startedAt is timestamp
+        && data.expiresAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTransactionRecord(data) {
+      return data.keys().hasAll([
+          'uid',
+          'userName',
+          'orderId',
+          'paymentId',
+          'amount',
+          'currency',
+          'paymentMethod',
+          'subscriptionType',
+          'paymentStatus',
+          'refundStatus',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'userName',
+          'orderId',
+          'paymentId',
+          'amount',
+          'currency',
+          'paymentMethod',
+          'subscriptionType',
+          'paymentStatus',
+          'refundStatus',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 80
+        && data.orderId is string && data.orderId.size() >= 1 && data.orderId.size() <= 128
+        && data.paymentId is string && data.paymentId.size() >= 1 && data.paymentId.size() <= 128
+        && data.amount is number && data.amount >= 0
+        && data.currency is string && data.currency.size() >= 3 && data.currency.size() <= 10
+        && data.paymentMethod is string && data.paymentMethod.size() >= 1 && data.paymentMethod.size() <= 64
+        && data.subscriptionType in ['monthly', 'annual']
+        && data.paymentStatus in ['captured', 'authorized', 'failed']
+        && data.refundStatus in ['none', 'partial', 'full']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDailyRevenueRecord(data) {
+      return data.keys().hasAll([
+          'dateKey',
+          'subscriptionRevenueInr',
+          'subscriptionRevenueUsd',
+          'adRevenueUsd',
+          'transactionCount',
+          'adImpressions',
+          'adClicks',
+          'source',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'dateKey',
+          'subscriptionRevenueInr',
+          'subscriptionRevenueUsd',
+          'adRevenueUsd',
+          'transactionCount',
+          'adImpressions',
+          'adClicks',
+          'source',
+          'updatedAt'
+        ])
+        && data.dateKey is string && data.dateKey.size() == 10 && data.dateKey.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.subscriptionRevenueInr is number && data.subscriptionRevenueInr >= 0
+        && data.subscriptionRevenueUsd is number && data.subscriptionRevenueUsd >= 0
+        && data.adRevenueUsd is number && data.adRevenueUsd >= 0
+        && data.transactionCount is int && data.transactionCount >= 0
+        && data.adImpressions is int && data.adImpressions >= 0
+        && data.adClicks is int && data.adClicks >= 0
+        && data.source is string && data.source.size() >= 1 && data.source.size() <= 64
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Health / Connection Check Document
+    // -------------------------------------------------------------------------
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Users & Isolated Subcollections
+    // -------------------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidUserPublicProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().subscriptionPlan == 'free'
+        && incoming().subscriptionStatus == 'none'
+        && incoming().status == 'active'
+        && incoming().role == 'user'
+        && incoming().inspectionCount == 0
+        && incoming().aiToolRuns == 0
+        && incoming().registeredAt == request.time
+        && incoming().lastActiveAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidUserPublicProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().registeredAt == existing().registeredAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isOwner(userId)
+            && existing().status == 'active'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName',
+              'photoURL',
+              'inspectionCount',
+              'aiToolRuns',
+              'deviceType',
+              'lastActiveAt',
+              'updatedAt'
+            ])
+            && incoming().lastActiveAt == request.time
+            && incoming().inspectionCount >= existing().inspectionCount
+            && incoming().aiToolRuns >= existing().aiToolRuns
+            && incoming().inspectionCount <= existing().inspectionCount + 1
+            && incoming().aiToolRuns <= existing().aiToolRuns + 1
+          )
+        );
+
+      allow delete: if isValidId(userId) && isAdmin();
+
+      match /private/info {
+        allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+        allow list: if false;
+
+        allow create: if isValidId(userId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isVerifiedUser()
+          && (isOwner(userId) || isAdmin())
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']);
+
+        allow delete: if isValidId(userId) && isAdmin();
+      }
+
+      match /savedVideos/{videoId} {
+        allow get: if isValidId(userId) && isValidId(videoId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId)
+          && isSignedIn()
+          && (
+            (request.auth.uid == userId && resource.data.uid == request.auth.uid)
+            || isAdmin()
+          );
+
+        allow create: if isValidId(userId)
+          && isValidId(videoId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidSavedVideoItem(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().videoId == videoId
+          && incoming().savedAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isValidId(userId)
+          && isValidId(videoId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidSavedVideoItem(incoming())
+          && incoming().uid == existing().uid
+          && incoming().videoId == existing().videoId
+          && incoming().savedAt == existing().savedAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'url',
+            'title',
+            'channelName',
+            'durationFormatted',
+            'thumbnailUrl',
+            'viewCount',
+            'videoSnapshot',
+            'updatedAt'
+          ]);
+
+        allow delete: if isValidId(userId) && isValidId(videoId) && isVerifiedUser() && (isOwner(userId) || isAdmin());
+      }
+
+      match /activity/{activityId} {
+        allow get: if isValidId(userId) && isValidId(activityId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId)
+          && isSignedIn()
+          && (
+            (request.auth.uid == userId && resource.data.uid == request.auth.uid)
+            || isAdmin()
+          );
+
+        allow create: if isValidId(userId)
+          && isValidId(activityId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidUserActivityItem(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().timestamp == request.time;
+
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(activityId) && isAdmin();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Admins Allowlist
+    // -------------------------------------------------------------------------
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidAdminAccount(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (isOwner(userId) && isBootstrappedAdminEmail() && incoming().email == request.auth.token.email)
+        );
+
+      allow update: if isValidId(userId)
+        && isAdmin()
+        && isValidAdminAccount(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'updatedAt']);
+
+      allow delete: if isValidId(userId) && isAdmin() && userId != request.auth.uid;
+    }
+
+    // -------------------------------------------------------------------------
+    // Public App Configuration & Notifications
+    // -------------------------------------------------------------------------
+    match /appConfig/{configId} {
+      allow get: if isValidId(configId) && configId == 'public';
+      allow list: if isAdmin();
+
+      allow create: if isValidId(configId)
+        && configId == 'public'
+        && isAdmin()
+        && isValidAppConfiguration(incoming())
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(configId)
+        && configId == 'public'
+        && isAdmin()
+        && isValidAppConfiguration(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'maintenanceMode',
+          'appStatus',
+          'announcementEnabled',
+          'announcementMessage',
+          'aiToolsEnabled',
+          'adGateEnabled',
+          'dailyFreeInspectLimit',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && (existing().active == true || isAdmin());
+      allow list: if existing().active == true || isAdmin();
+
+      allow create: if isValidId(notificationId)
+        && isAdmin()
+        && isValidAppNotification(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(notificationId)
+        && isAdmin()
+        && isValidAppNotification(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'message', 'audience', 'active', 'updatedAt']);
+
+      allow delete: if isValidId(notificationId) && isAdmin();
+    }
+
+    // -------------------------------------------------------------------------
+    // Verified Subscriptions, Transactions & Revenue Rollups
+    // -------------------------------------------------------------------------
+    match /subscriptions/{subscriptionId} {
+      allow get: if isValidId(subscriptionId) && isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+
+      allow create: if isValidId(subscriptionId)
+        && isAdmin()
+        && isValidSubscriptionRecord(incoming())
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(subscriptionId)
+        && isAdmin()
+        && isValidSubscriptionRecord(incoming())
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['plan', 'status', 'expiresAt', 'updatedAt']);
+
+      allow delete: if isValidId(subscriptionId) && isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      allow get: if isValidId(transactionId) && isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
+
+      allow create: if isValidId(transactionId)
+        && isAdmin()
+        && isValidTransactionRecord(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(transactionId)
+        && isAdmin()
+        && isValidTransactionRecord(incoming())
+        && incoming().uid == existing().uid
+        && incoming().orderId == existing().orderId
+        && incoming().paymentId == existing().paymentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'refundStatus', 'updatedAt']);
+
+      allow delete: if isValidId(transactionId) && isAdmin();
+    }
+
+    match /revenueDaily/{dateKey} {
+      allow get: if isValidId(dateKey) && isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if isValidId(dateKey)
+        && isAdmin()
+        && isValidDailyRevenueRecord(incoming())
+        && incoming().dateKey == dateKey
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(dateKey)
+        && isAdmin()
+        && isValidDailyRevenueRecord(incoming())
+        && incoming().dateKey == existing().dateKey
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'subscriptionRevenueInr',
+          'subscriptionRevenueUsd',
+          'adRevenueUsd',
+          'transactionCount',
+          'adImpressions',
+          'adClicks',
+          'source',
+          'updatedAt'
+        ]);
+
+      allow delete: if isValidId(dateKey) && isAdmin();
+    }
+  }
+}

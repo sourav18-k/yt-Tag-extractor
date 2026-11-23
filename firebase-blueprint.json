@@ -1,0 +1,255 @@
+{
+  "entities": {
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Core non-PII user profile, subscription tier, status, and usage counters.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "subscriptionPlan": { "type": "string", "enum": ["free", "monthly", "annual"] },
+        "subscriptionStatus": { "type": "string", "enum": ["none", "active", "expired", "cancelled"] },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "inspectionCount": { "type": "number" },
+        "aiToolRuns": { "type": "number" },
+        "deviceType": { "type": "string", "enum": ["Desktop", "Mobile", "Tablet", "Unknown"] },
+        "registeredAt": { "type": "string", "format": "date-time" },
+        "lastActiveAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "subscriptionPlan",
+        "subscriptionStatus",
+        "status",
+        "role",
+        "inspectionCount",
+        "aiToolRuns",
+        "deviceType",
+        "registeredAt",
+        "lastActiveAt",
+        "updatedAt"
+      ]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII record containing verified email address, accessible only by owner or admin.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "SavedVideoItem": {
+      "title": "SavedVideoItem",
+      "description": "Saved YouTube video metadata inspected and stored under the owning user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "videoId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "url": { "type": "string", "minLength": 10, "maxLength": 500 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "channelName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "durationFormatted": { "type": "string", "maxLength": 32 },
+        "thumbnailUrl": { "type": "string", "maxLength": 500 },
+        "viewCount": { "type": "number" },
+        "videoSnapshot": { "type": "object" },
+        "savedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "videoId", "url", "title", "channelName", "durationFormatted", "thumbnailUrl", "savedAt", "updatedAt"]
+    },
+    "UserActivityItem": {
+      "title": "UserActivityItem",
+      "description": "Per-user activity timeline entry.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "action": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "action", "timestamp"]
+    },
+    "AdminAccount": {
+      "title": "AdminAccount",
+      "description": "Verified administrator account allowlist record.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 120 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "role": { "type": "string", "enum": ["admin"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "createdAt", "updatedAt"]
+    },
+    "AppConfiguration": {
+      "title": "AppConfiguration",
+      "description": "Global ClipLens feature switches, maintenance mode, and public banner configuration.",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": { "type": "boolean" },
+        "appStatus": { "type": "string", "enum": ["operational", "degraded", "maintenance"] },
+        "announcementEnabled": { "type": "boolean" },
+        "announcementMessage": { "type": "string", "maxLength": 280 },
+        "aiToolsEnabled": { "type": "boolean" },
+        "adGateEnabled": { "type": "boolean" },
+        "dailyFreeInspectLimit": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "maintenanceMode",
+        "appStatus",
+        "announcementEnabled",
+        "announcementMessage",
+        "aiToolsEnabled",
+        "adGateEnabled",
+        "dailyFreeInspectLimit",
+        "updatedAt"
+      ]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "Targeted user notification managed by administrators.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "audience": { "type": "string", "enum": ["all", "free", "premium"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "audience", "active", "createdAt", "updatedAt"]
+    },
+    "SubscriptionRecord": {
+      "title": "SubscriptionRecord",
+      "description": "Verified premium subscription entitlement record.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "plan": { "type": "string", "enum": ["monthly", "annual"] },
+        "status": { "type": "string", "enum": ["active", "expired", "cancelled"] },
+        "provider": { "type": "string", "maxLength": 32 },
+        "razorpayOrderId": { "type": "string", "maxLength": 128 },
+        "razorpayPaymentId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "plan", "status", "provider", "amount", "currency", "startedAt", "expiresAt", "updatedAt"]
+    },
+    "TransactionRecord": {
+      "title": "TransactionRecord",
+      "description": "Verified payment transaction record stored for accounting and audit.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "orderId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "paymentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "minLength": 3, "maxLength": 10 },
+        "paymentMethod": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "subscriptionType": { "type": "string", "enum": ["monthly", "annual"] },
+        "paymentStatus": { "type": "string", "enum": ["captured", "authorized", "failed"] },
+        "refundStatus": { "type": "string", "enum": ["none", "partial", "full"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "userName",
+        "orderId",
+        "paymentId",
+        "amount",
+        "currency",
+        "paymentMethod",
+        "subscriptionType",
+        "paymentStatus",
+        "refundStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DailyRevenueRecord": {
+      "title": "DailyRevenueRecord",
+      "description": "Verified daily revenue aggregation from settled transactions and connected ad reports.",
+      "type": "object",
+      "properties": {
+        "dateKey": { "type": "string", "minLength": 10, "maxLength": 10, "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "subscriptionRevenueInr": { "type": "number" },
+        "subscriptionRevenueUsd": { "type": "number" },
+        "adRevenueUsd": { "type": "number" },
+        "transactionCount": { "type": "number" },
+        "adImpressions": { "type": "number" },
+        "adClicks": { "type": "number" },
+        "source": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "dateKey",
+        "subscriptionRevenueInr",
+        "subscriptionRevenueUsd",
+        "adRevenueUsd",
+        "transactionCount",
+        "adImpressions",
+        "adClicks",
+        "source",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublicProfile" },
+      "description": "Core user profile document (non-PII fields, subscription state, usage counters)."
+    },
+    "/users/{userId}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII document storing user email address."
+    },
+    "/users/{userId}/savedVideos/{videoId}": {
+      "schema": { "$ref": "#/entities/SavedVideoItem" },
+      "description": "Per-user saved YouTube video inspection snapshots."
+    },
+    "/users/{userId}/activity/{activityId}": {
+      "schema": { "$ref": "#/entities/UserActivityItem" },
+      "description": "Per-user chronological activity entries."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminAccount" },
+      "description": "Administrator allowlist documents."
+    },
+    "/appConfig/{configId}": {
+      "schema": { "$ref": "#/entities/AppConfiguration" },
+      "description": "Publicly readable, admin-writable application configuration."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/AppNotification" },
+      "description": "Targeted user notifications managed by administrators."
+    },
+    "/subscriptions/{subscriptionId}": {
+      "schema": { "$ref": "#/entities/SubscriptionRecord" },
+      "description": "Verified subscription records readable by owner or admin, writable by admin only."
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/TransactionRecord" },
+      "description": "Verified payment transactions readable by owner or admin, writable by admin only."
+    },
+    "/revenueDaily/{dateKey}": {
+      "schema": { "$ref": "#/entities/DailyRevenueRecord" },
+      "description": "Verified daily revenue rollup accessible exclusively by administrators."
+    }
+  }
+}

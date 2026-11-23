@@ -1,0 +1,6 @@
+{
+  "name": "ClipLens",
+  "description": "Mobile-first YouTube video inspector displaying title, description, thumbnails, tags, duration, and channel details.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
